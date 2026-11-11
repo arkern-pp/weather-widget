@@ -34,8 +34,9 @@
   .day .p { margin-top: 2px; font-size: 11px; color: var(--dim); }
   svg { stroke: var(--ink); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
   .msg { font-size: 13px; color: var(--dim); }
-  @media (max-width: 620px) { .rule, .days { display: none; } }
   @media (max-width: 860px) { .day:nth-child(n+5) { display: none; } .days { grid-template-columns: repeat(4, 1fr); } }
+  @media (max-width: 680px) { .day:nth-child(n+4) { display: none; } .days { grid-template-columns: repeat(3, 1fr); } .now svg { display: none; } }
+  @media (max-width: 500px) { .rule, .days { display: none; } }
 </style>
 </head>
 <body>
