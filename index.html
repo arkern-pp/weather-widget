@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Weather</title>
+<style>
+  :root { --bg: #14161a; --ink: #f0ece2; --dim: rgba(240,236,226,.55); --line: rgba(240,236,226,.16); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); }
+  body {
+    color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+    display: flex; align-items: center;
+    padding: 0 clamp(18px, 3.2vw, 44px);
+    overflow: hidden;
+  }
+  .wrap { width: 100%; display: flex; align-items: center; gap: clamp(18px, 3vw, 44px); }
+  .label { font-size: 11px; font-weight: 700; letter-spacing: .22em; color: var(--dim); white-space: nowrap; }
+  .now { display: flex; align-items: center; gap: 16px; }
+  .now svg { width: 46px; height: 46px; flex: none; }
+  .temp { font-size: clamp(40px, 6vw, 58px); font-weight: 700; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .temp sup { font-size: .42em; font-weight: 400; vertical-align: top; margin-left: 2px; color: var(--dim); }
+  .cond { margin-top: 8px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .meta { margin-top: 4px; font-size: 12px; color: var(--dim); white-space: nowrap; }
+  .rule { align-self: stretch; width: 1px; background: var(--line); flex: none; }
+  .days { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; min-width: 0; }
+  .day { text-align: center; padding: 2px 0; }
+  .day .d { font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--dim); }
+  .day svg { width: 24px; height: 24px; margin: 7px 0 5px; }
+  .day .t { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .day .t span { color: var(--dim); font-weight: 400; }
+  .day .p { margin-top: 2px; font-size: 11px; color: var(--dim); }
+  svg { stroke: var(--ink); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .msg { font-size: 13px; color: var(--dim); }
+  @media (max-width: 620px) { .rule, .days { display: none; } }
+  @media (max-width: 860px) { .day:nth-child(n+5) { display: none; } .days { grid-template-columns: repeat(4, 1fr); } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="msg">날씨를 불러오는 중입니다</div></div>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var LAT = parseFloat(q.get("lat")) || 37.5665;
+  var LON = parseFloat(q.get("lon")) || 126.9780;
+  var NAME = (q.get("name") || "SEOUL").toUpperCase().slice(0, 24);
+
+  var ICON = {
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>',
+    part: '<circle cx="8.5" cy="8.5" r="3"/><path d="M8.5 2.8v1.4M2.8 8.5h1.4M4.5 4.5l1 1M12.5 4.5l-1 1"/><path d="M9 19h8.5a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.4 1.3A3 3 0 0 0 9 19z"/>',
+    cloud: '<path d="M7 18.5h10.5a4 4 0 0 0 .5-8 6 6 0 0 0-11.3 1.6A3.3 3.3 0 0 0 7 18.5z"/>',
+    fog: '<path d="M7 13.5h10.5a4 4 0 0 0 .5-8 6 6 0 0 0-11.3 1.6A3.3 3.3 0 0 0 7 13.5z"/><path d="M5 17h14M7.5 20.5h9"/>',
+    rain: '<path d="M7 14.5h10.5a4 4 0 0 0 .5-8 6 6 0 0 0-11.3 1.6A3.3 3.3 0 0 0 7 14.5z"/><path d="M8.5 17.5l-1 3M12.5 17.5l-1 3M16.5 17.5l-1 3"/>',
+    snow: '<path d="M7 14.5h10.5a4 4 0 0 0 .5-8 6 6 0 0 0-11.3 1.6A3.3 3.3 0 0 0 7 14.5z"/><path d="M8 18.2v.1M12 18.2v.1M16 18.2v.1M10 21v.1M14 21v.1" stroke-width="2.2"/>',
+    storm: '<path d="M7 14.5h10.5a4 4 0 0 0 .5-8 6 6 0 0 0-11.3 1.6A3.3 3.3 0 0 0 7 14.5z"/><path d="M12.5 16l-2 3h3l-2 3"/>'
+  };
+  function kind(c) {
+    if (c === 0) return ["sun", "맑음"];
+    if (c === 1) return ["sun", "대체로 맑음"];
+    if (c === 2) return ["part", "구름 조금"];
+    if (c === 3) return ["cloud", "흐림"];
+    if (c === 45 || c === 48) return ["fog", "안개"];
+    if (c >= 51 && c <= 57) return ["rain", "이슬비"];
+    if (c >= 61 && c <= 67) return ["rain", "비"];
+    if (c >= 71 && c <= 77) return ["snow", "눈"];
+    if (c >= 80 && c <= 82) return ["rain", "소나기"];
+    if (c === 85 || c === 86) return ["snow", "눈"];
+    if (c >= 95) return ["storm", "뇌우"];
+    return ["cloud", "흐림"];
+  }
+  function svg(k) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[k] + "</svg>"; }
+  function dust(v) { return v <= 30 ? "좋음" : v <= 80 ? "보통" : v <= 150 ? "나쁨" : "매우 나쁨"; }
+  var DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+  function get(url) { return fetch(url).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
+
+  function load() {
+    var w = "https://api.open-meteo.com/v1/forecast?latitude=" + LAT + "&longitude=" + LON +
+      "&current=temperature_2m,apparent_temperature,weather_code,relative_humidity_2m" +
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+      "&timezone=auto&forecast_days=5";
+    var a = "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=" + LAT + "&longitude=" + LON + "&current=pm10&timezone=auto";
+    Promise.all([get(w), get(a).catch(function () { return null; })]).then(function (res) {
+      var d = res[0], air = res[1], c = d.current, k = kind(c.weather_code);
+      var meta = "체감 " + Math.round(c.apparent_temperature) + "° · 습도 " + Math.round(c.relative_humidity_2m) + "%";
+      if (air && air.current && air.current.pm10 != null) meta += " · 미세먼지 " + dust(air.current.pm10);
+      var days = d.daily.time.map(function (t, i) {
+        var dk = kind(d.daily.weather_code[i]);
+        var dow = i === 0 ? "TODAY" : DOW[new Date(t + "T00:00:00").getDay()];
+        var p = d.daily.precipitation_probability_max[i];
+        return '<div class="day"><div class="d">' + dow + "</div>" + svg(dk[0]) +
+          '<div class="t">' + Math.round(d.daily.temperature_2m_max[i]) + "° <span>" + Math.round(d.daily.temperature_2m_min[i]) + "°</span></div>" +
+          '<div class="p">' + (p == null ? "&nbsp;" : "강수 " + p + "%") + "</div></div>";
+      }).join("");
+      document.getElementById("app").innerHTML =
+        '<div><div class="label">WEATHER · ' + NAME.replace(/[<>&"]/g, "") + '</div>' +
+        '<div class="now" style="margin-top:12px">' + svg(k[0]) +
+        '<div class="temp">' + Math.round(c.temperature_2m) + "<sup>°C</sup></div>" +
+        '<div><div class="cond">' + k[1] + '</div><div class="meta">' + meta + "</div></div></div></div>" +
+        '<div class="rule"></div><div class="days">' + days + "</div>";
+    }).catch(function () {
+      document.getElementById("app").innerHTML = '<div class="msg">날씨를 불러오지 못했습니다. 잠시 뒤 다시 시도합니다.</div>';
+    });
+  }
+  load();
+  setInterval(load, 15 * 60 * 1000);
+})();
+</script>
+</body>
+</html>
